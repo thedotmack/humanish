@@ -1,0 +1,29 @@
+node_modules/
+.wrangler/
+.dev.vars
+.env
+.env.local
+*.log
+dist/
+build/
+.DS_Store
+.vscode/
+.idea/
+*.swp
+coverage/
+.turbo/
+.nyc_output/
+
+# Fly.io
+.fly/
+
+# Python (notebooklm-py local dev)
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Local secrets / state
+data/
+storage_state*.json
+*.bin
