@@ -27,3 +27,6 @@ venv/
 data/
 storage_state*.json
 *.bin
+
+# Project-local scratch (cloned upstreams, experiments)
+.scratch/
