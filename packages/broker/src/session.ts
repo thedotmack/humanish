@@ -49,6 +49,20 @@ export async function readSessionUser(
   }
 }
 
+/**
+ * Returns the raw session cookie token from the request, or null if missing
+ * or malformed. Used by callers that need to key per-session state (e.g.
+ * rate limiting) on something stable across the session lifetime. The token
+ * is hashed before being used as a KV key — never store it raw.
+ */
+export function readSessionToken(req: Request): string | null {
+  const cookieHeader = req.headers.get("Cookie") ?? "";
+  const token = parseCookie(cookieHeader, COOKIE_NAME);
+  if (!token) return null;
+  if (!/^[0-9a-f]{32}$/.test(token)) return null;
+  return token;
+}
+
 // `domain` is optional. On a *.workers.dev host the cookie is host-only (no
 // Domain=) because workers.dev is on the Public Suffix List. Pass the apex
 // only when we're on a custom domain we own.

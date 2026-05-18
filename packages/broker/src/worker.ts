@@ -22,12 +22,18 @@ import {
   mintMagicToken,
   sendMagicLinkEmail,
 } from "./auth.js";
-import { mintBearer, payloadShapeHash, verifyBearer } from "./bearer.js";
+import {
+  checkMintRateLimit,
+  mintBearer,
+  payloadShapeHash,
+  verifyBearer,
+} from "./bearer.js";
 import { htmlEscape } from "./crypto-util.js";
 import {
   buildClearCookie,
   buildSessionCookie,
   createSession,
+  readSessionToken,
   readSessionUser,
 } from "./session.js";
 import { EFF_LONG_SLUG_SAFE, EFF_LONG_SLUG_SAFE_SET } from "./wordlist.js";
@@ -101,7 +107,7 @@ async function route(req: Request, env: Env): Promise<Response> {
   // Profile proxy (session-gated; forwards to box with shared secret)
   // -----------------------------------------------------------------
   if (method === "GET" && path === "/api/profiles") {
-    return withSession(req, env, () => proxyToBox(env, "GET", "/profiles"));
+    return withSession(req, env, () => handleProfilesList(env));
   }
 
   const profileStartLogin = path.match(/^\/api\/profiles\/([a-z][a-z0-9-]{0,63})\/start-login$/);
@@ -133,6 +139,21 @@ async function route(req: Request, env: Env): Promise<Response> {
   // -----------------------------------------------------------------
   if (method === "POST" && path === "/api/mint") {
     return withSession(req, env, () => handleMint(req, env, url));
+  }
+
+  // -----------------------------------------------------------------
+  // Reauth marker — clear the `expired:<profile>` flag after re-login.
+  // Session-gated so only the operator can clear flags.
+  // -----------------------------------------------------------------
+  const profileReauth = path.match(
+    /^\/api\/profiles\/([a-z][a-z0-9-]{0,63})\/clear-expired$/,
+  );
+  if (method === "POST" && profileReauth) {
+    const name = profileReauth[1] as string;
+    return withSession(req, env, async () => {
+      await env.KV.delete(`expired:${name}`);
+      return jsonResponse({ ok: true }, 200);
+    });
   }
 
   // -----------------------------------------------------------------
@@ -223,6 +244,20 @@ interface MintBody {
 }
 
 async function handleMint(req: Request, env: Env, url: URL): Promise<Response> {
+  // Per-session rate limit. withSession already established the cookie is
+  // valid, so readSessionToken is guaranteed to return a token here — but be
+  // defensive and 401 anyway if it somehow returns null.
+  const sessionToken = readSessionToken(req);
+  if (!sessionToken) return jsonResponse({ error: "unauthenticated" }, 401);
+  const rl = await checkMintRateLimit(env, sessionToken);
+  if (!rl.ok) {
+    return jsonResponse(
+      { error: "rate_limited", retry_after_seconds: rl.retry_after_seconds },
+      429,
+      { "Retry-After": String(rl.retry_after_seconds) },
+    );
+  }
+
   let body: MintBody;
   try {
     body = (await req.json()) as MintBody;
@@ -362,6 +397,34 @@ async function handleActionCall(
   });
 
   logActionResult(request_id, profile, action_id, boxRes.status, Date.now() - started);
+
+  // The box has no notion of "expired" — it just sees that Playwright bounced
+  // to login. When that happens it returns 503 {error: "auth_expired"}. The
+  // broker translates that into a persistent `expired:<profile>` KV marker
+  // so the dashboard can render a yellow banner without re-running the action.
+  // We must clone the body to read it for the marker decision AND pass it
+  // through to the caller unchanged.
+  if (boxRes.status === 503) {
+    const cloned = boxRes.clone();
+    let parsed: { error?: unknown } | null = null;
+    try {
+      parsed = (await cloned.json()) as { error?: unknown };
+    } catch {
+      parsed = null;
+    }
+    if (parsed && parsed.error === "auth_expired") {
+      const marker = {
+        request_id,
+        expired_at: new Date().toISOString(),
+      };
+      // 30-day TTL — survives a forgetful operator; dashboard banner shows it.
+      // Cleared by POST /api/profiles/:name/clear-expired after reauth.
+      await env.KV.put(`expired:${profile}`, JSON.stringify(marker), {
+        expirationTtl: 30 * 24 * 3600,
+      }).catch(() => undefined);
+    }
+  }
+
   // Stream the box's response back unchanged — don't materialize the body.
   return new Response(boxRes.body, {
     status: boxRes.status,
@@ -381,6 +444,53 @@ async function withSession(
   const user = await readSessionUser(req, env);
   if (!user) return jsonResponse({ error: "unauthenticated" }, 401);
   return fn();
+}
+
+/**
+ * GET /api/profiles — fetches the raw list from the box, then decorates each
+ * entry with `status: "expired" | "ready"` by checking the KV `expired:<name>`
+ * marker. The box itself has no concept of expiry (just files on disk) — the
+ * marker is set by handleActionCall when the box returns 503 auth_expired.
+ */
+async function handleProfilesList(env: Env): Promise<Response> {
+  const boxRes = await proxyToBox(env, "GET", "/profiles");
+  if (boxRes.status !== 200) {
+    // Pass non-200s through untouched — the dashboard handles errors.
+    return boxRes;
+  }
+  let parsed: { profiles?: unknown } = {};
+  try {
+    parsed = (await boxRes.json()) as { profiles?: unknown };
+  } catch {
+    return jsonResponse({ error: "upstream_invalid_json" }, 502);
+  }
+  const profiles = Array.isArray(parsed.profiles) ? parsed.profiles : [];
+
+  // Parallel-fetch all expiry markers. Single-user MVP — list stays small.
+  const decorated = await Promise.all(
+    profiles.map(async (entry) => {
+      if (!entry || typeof entry !== "object") return entry;
+      const name = (entry as { name?: unknown }).name;
+      if (typeof name !== "string") return entry;
+      const marker = await env.KV.get(`expired:${name}`);
+      if (!marker) return { ...(entry as object), status: "ready" as const };
+      let expired_at: string | undefined;
+      try {
+        const parsedMarker = JSON.parse(marker) as { expired_at?: unknown };
+        if (typeof parsedMarker.expired_at === "string") {
+          expired_at = parsedMarker.expired_at;
+        }
+      } catch {
+        // Corrupt marker — fall through with status only.
+      }
+      return {
+        ...(entry as object),
+        status: "expired" as const,
+        ...(expired_at ? { expired_at } : {}),
+      };
+    }),
+  );
+  return jsonResponse({ profiles: decorated }, 200);
 }
 
 async function proxyToBox(

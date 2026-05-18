@@ -8,6 +8,7 @@
     "box:build": "docker build -f packages/box/Dockerfile -t humanish-box:dev .",
     "box:deploy": "fly deploy -c packages/box/fly.toml",
     "typecheck": "pnpm -r typecheck",
-    "lint": "pnpm -r lint"
+    "lint": "pnpm -r lint",
+    "check:allowlist": "node scripts/check-action-allowlist.mjs"
   }
 }

@@ -7,8 +7,80 @@
 //   skeleton — so an attacker who steals the bearer can't repurpose it to call
 //   a wildly different operation. Same fields + same types = same hash;
 //   different fields or different types = different hash.
+//
+// Per-bearer RPS floor:
+//   max_calls=1 is the primary defense — verifyBearer deletes the KV entry on
+//   first successful call. KV is eventually consistent, so a sufficiently
+//   parallel attacker could in theory squeeze a second call through the
+//   consistency window. We do NOT add a per-bearer RPS floor in MVP because
+//   the realistic attacker model (the human paste recipient) cannot trigger
+//   two parallel calls before the first completes. Add a per-bearer RPS floor
+//   if KV consistency window leaks become a real problem.
 
 import { randomTokenHex, sha256Hex } from "./crypto-util.js";
+
+// Per-session-cookie mint rate limit. Sliding window — keep timestamps of the
+// last hour's mints in a single KV entry, prune expired ones on each check.
+const MINT_WINDOW_MS = 3600 * 1000;
+const MINT_WINDOW_SECONDS = 3600;
+const MINT_MAX_PER_WINDOW = 30;
+
+export type MintRateLimitResult =
+  | { ok: true }
+  | { ok: false; retry_after_seconds: number };
+
+/**
+ * Check + record a mint against the per-session sliding-window rate limit.
+ * Returns ok=true and bumps the counter if under the limit; returns ok=false
+ * with retry_after_seconds (until the oldest entry in the window expires)
+ * if the session has already used its quota.
+ *
+ * Key is sha256(session_token) so the raw token never sits in the rate-limit
+ * KV entry — same defense-in-depth as session.ts.
+ */
+export async function checkMintRateLimit(
+  env: Env,
+  sessionToken: string,
+): Promise<MintRateLimitResult> {
+  const hash = await sha256Hex(sessionToken);
+  const key = `mint-rate:${hash}`;
+  const now = Date.now();
+  const cutoff = now - MINT_WINDOW_MS;
+
+  const raw = await env.KV.get(key);
+  let timestamps: number[] = [];
+  if (raw) {
+    try {
+      const parsed = JSON.parse(raw);
+      if (Array.isArray(parsed)) {
+        timestamps = parsed.filter(
+          (entry): entry is number => typeof entry === "number" && entry > cutoff,
+        );
+      }
+    } catch {
+      // Corrupt entry — treat as empty rather than locking the user out.
+      timestamps = [];
+    }
+  }
+
+  if (timestamps.length >= MINT_MAX_PER_WINDOW) {
+    // retry_after is when the OLDEST entry leaves the window (the next slot
+    // frees up at that moment). Round up to whole seconds; minimum 1s so we
+    // never advertise a zero-second retry.
+    const oldest = timestamps[0] as number;
+    const retry_after_seconds = Math.max(
+      1,
+      Math.ceil((oldest + MINT_WINDOW_MS - now) / 1000),
+    );
+    return { ok: false, retry_after_seconds };
+  }
+
+  timestamps.push(now);
+  await env.KV.put(key, JSON.stringify(timestamps), {
+    expirationTtl: MINT_WINDOW_SECONDS,
+  });
+  return { ok: true };
+}
 
 export interface BearerScope {
   profile: string;

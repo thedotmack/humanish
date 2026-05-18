@@ -28,7 +28,7 @@ import {
   writeProfileAtomic,
 } from "./profile-store.js";
 import { captureStorageState, resetNekoTab } from "./neko-bridge.js";
-import { appendAuditLine } from "./audit.js";
+import { appendAuditLine, pruneOldLogs } from "./audit.js";
 import {
   ACTION_IDS,
   ACTION_REGISTRY,
@@ -310,6 +310,11 @@ function scrub(err: unknown): { name: string; message: string } {
 
 async function main(): Promise<void> {
   const app = buildServer();
+  // Best-effort: prune any rotated audit logs older than retention. A failure
+  // here must not stop the server (a stuck disk for instance).
+  pruneOldLogs().catch((err) => {
+    app.log.warn({ err: String(err) }, "pruneOldLogs failed at startup");
+  });
   await app.listen({
     host: env.LISTEN_HOST, // "::1" by default — never bind 0.0.0.0
     port: env.LISTEN_PORT,
