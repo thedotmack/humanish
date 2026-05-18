@@ -1,0 +1,13 @@
+{
+  "name": "humanish",
+  "private": true,
+  "scripts": {
+    "broker:dev": "pnpm --filter broker dev",
+    "broker:deploy": "pnpm --filter broker deploy",
+    "box:dev": "pnpm --filter @humanish/action-runner dev",
+    "box:build": "docker build -f packages/box/Dockerfile -t humanish-box:dev .",
+    "box:deploy": "fly deploy -c packages/box/fly.toml",
+    "typecheck": "pnpm -r typecheck",
+    "lint": "pnpm -r lint"
+  }
+}

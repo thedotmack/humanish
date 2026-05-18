@@ -1,0 +1,5 @@
+app = "humanish-box"
+primary_region = "sjc"
+
+[build]
+  dockerfile = "packages/box/Dockerfile"

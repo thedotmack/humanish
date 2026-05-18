@@ -1,0 +1,20 @@
+name = "humanish-broker"
+main = "src/worker.ts"
+compatibility_date = "2026-04-01"
+compatibility_flags = ["nodejs_compat"]
+
+[[durable_objects.bindings]]
+name = "SLUG_NS"
+class_name = "SlugBox"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["SlugBox"]
+
+[[kv_namespaces]]
+binding = "KV"
+id = "PLACEHOLDER"   # filled by `wrangler kv:namespace create KV`
+
+[vars]
+BOX_ORIGIN = "https://humanish-box.flycast:7654"
+COOKIE_DOMAIN = "humanish-broker.workers.dev"  # change when custom domain wired
