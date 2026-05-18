@@ -1,3 +1,17 @@
 node_modules
 .git
 .scratch
+**/node_modules
+**/.git
+**/.scratch
+**/.DS_Store
+**/*.log
+# Tests / dev-only assets — never enter the image.
+**/*.test.ts
+**/*.spec.ts
+# Source TypeScript — we copy `dist/` only.
+packages/box/action-runner/src
+# Other packages — only the box subtree belongs in this image.
+packages/broker
+plans
+reports
