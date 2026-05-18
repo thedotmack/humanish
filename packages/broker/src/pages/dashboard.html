@@ -1,0 +1,734 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>humanish — dashboard</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #fafaf7;
+      color: #1a1a1a;
+      line-height: 1.5;
+    }
+    main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: 1.5rem 1rem 4rem;
+    }
+    header.chrome {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 1rem;
+      padding: 1rem 1.25rem;
+      max-width: 800px;
+      margin: 0 auto;
+      border-bottom: 1px solid #eae8df;
+    }
+    header.chrome .brand {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+    }
+    header.chrome .who {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      font-size: 0.9rem;
+      color: #4a4a4a;
+    }
+    section {
+      margin-top: 2.25rem;
+    }
+    h2 {
+      font-size: 1.15rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin: 0 0 0.85rem;
+    }
+    p.hint {
+      margin: 0 0 0.85rem;
+      color: #4a4a4a;
+      font-size: 0.9rem;
+    }
+    .empty {
+      padding: 1rem 1.1rem;
+      background: #f0eee7;
+      border-radius: 8px;
+      color: #4a4a4a;
+      font-size: 0.92rem;
+    }
+    .profiles {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .profile-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+      padding: 0.75rem 0.9rem;
+      background: #fff;
+      border: 1px solid #eae8df;
+      border-radius: 8px;
+    }
+    .profile-row .name {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+    .profile-row .meta {
+      color: #6a6a6a;
+      font-size: 0.85rem;
+      flex: 1;
+    }
+    .profile-row .actions {
+      display: flex;
+      gap: 0.4rem;
+    }
+    form.new-login {
+      display: flex;
+      flex-direction: column;
+      gap: 0.55rem;
+    }
+    .row {
+      display: flex;
+      gap: 0.55rem;
+      align-items: stretch;
+    }
+    input[type="text"], select {
+      font: inherit;
+      padding: 0.55rem 0.7rem;
+      border: 1px solid #d0cec7;
+      border-radius: 6px;
+      background: #fff;
+      color: #1a1a1a;
+      min-width: 0;
+    }
+    input[type="text"]:focus, select:focus {
+      outline: 2px solid #2d6a4f;
+      outline-offset: -1px;
+      border-color: #2d6a4f;
+    }
+    input[type="text"] { flex: 1; }
+    button {
+      font: inherit;
+      padding: 0.55rem 0.95rem;
+      border-radius: 6px;
+      cursor: pointer;
+      border: 1px solid transparent;
+      background: #2d6a4f;
+      color: #fafaf7;
+      white-space: nowrap;
+    }
+    button:hover:not(:disabled) { background: #245540; }
+    button:disabled { opacity: 0.55; cursor: not-allowed; }
+    button.ghost {
+      background: #fff;
+      color: #1a1a1a;
+      border: 1px solid #d0cec7;
+    }
+    button.ghost:hover:not(:disabled) { background: #f3f1ea; }
+    button.danger {
+      background: #fff;
+      color: #c44569;
+      border: 1px solid #e6c3cd;
+    }
+    button.danger:hover:not(:disabled) { background: #fbeef2; }
+    button.small {
+      padding: 0.35rem 0.65rem;
+      font-size: 0.85rem;
+    }
+    .field-error {
+      color: #c44569;
+      font-size: 0.85rem;
+      min-height: 1.1em;
+    }
+    .jail {
+      margin-top: 1rem;
+      padding: 1rem;
+      background: #fff;
+      border: 1px solid #eae8df;
+      border-radius: 8px;
+    }
+    .jail-toolbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+      margin-bottom: 0.75rem;
+    }
+    .jail-toolbar .label {
+      font-size: 0.9rem;
+      color: #4a4a4a;
+    }
+    .jail-toolbar .label strong { color: #1a1a1a; }
+    .jail-actions { display: flex; gap: 0.4rem; }
+    .jail-frame {
+      width: 100%;
+      height: 600px;
+      border: 1px solid #d0cec7;
+      border-radius: 6px;
+      background: #000;
+    }
+    .jail-status {
+      margin-top: 0.6rem;
+      font-size: 0.85rem;
+      color: #4a4a4a;
+    }
+    .mint-form {
+      display: grid;
+      grid-template-columns: 1fr;
+      gap: 0.75rem;
+    }
+    .mint-form label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-size: 0.88rem;
+      color: #2a2a2a;
+    }
+    .ttl-row {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .ttl-row input[type="range"] { flex: 1; }
+    .ttl-value {
+      font-variant-numeric: tabular-nums;
+      font-weight: 600;
+      min-width: 3ch;
+    }
+    .banner {
+      margin-top: 1rem;
+      padding: 0.85rem 1rem;
+      background: #e7f3ec;
+      border: 1px solid #b6dac3;
+      border-radius: 8px;
+      color: #1a1a1a;
+    }
+    .banner.error {
+      background: #fbeef2;
+      border-color: #e6c3cd;
+      color: #8b2545;
+    }
+    .banner .url {
+      display: block;
+      margin-top: 0.4rem;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+      color: #2d6a4f;
+    }
+    .banner .extra {
+      display: block;
+      margin-top: 0.5rem;
+      font-size: 0.85rem;
+    }
+    a {
+      color: #2d6a4f;
+      text-decoration: underline;
+    }
+    a:hover { color: #245540; }
+  </style>
+</head>
+<body>
+  <header class="chrome">
+    <div class="brand">humanish</div>
+    <div class="who">
+      <span id="me-email">…</span>
+      <form method="post" action="/api/auth/logout" style="margin:0">
+        <button type="submit" class="ghost small">Log out</button>
+      </form>
+    </div>
+  </header>
+
+  <main>
+    <section id="profiles-section">
+      <h2>Profiles</h2>
+      <div id="profiles-list"></div>
+    </section>
+
+    <section id="new-login-section">
+      <h2>+ Log in to a new service</h2>
+      <p class="hint">Pick a short profile name (lowercase letters, digits, hyphens). The browser jail opens below.</p>
+      <form class="new-login" id="new-login-form" autocomplete="off">
+        <div class="row">
+          <input type="text" id="new-profile-name" placeholder="e.g. google-personal" maxlength="64" required>
+          <button type="submit">Open browser jail</button>
+        </div>
+        <div class="field-error" id="new-profile-error"></div>
+      </form>
+      <div id="jail-container"></div>
+    </section>
+
+    <section id="mint-section">
+      <h2>Mint a slug</h2>
+      <p class="hint">Issue a single-use URL that grants Claude one call against the chosen profile + action.</p>
+      <form class="mint-form" id="mint-form">
+        <label>
+          Profile
+          <select id="mint-profile" required></select>
+        </label>
+        <label>
+          Action
+          <select id="mint-action" required>
+            <option value="google.whoami">google.whoami</option>
+          </select>
+        </label>
+        <label>
+          TTL
+          <div class="ttl-row">
+            <input type="range" id="mint-ttl" min="0" max="2" step="1" value="1">
+            <span class="ttl-value" id="mint-ttl-label">4h</span>
+          </div>
+        </label>
+        <div class="row">
+          <button type="submit" id="mint-submit">Mint</button>
+        </div>
+      </form>
+      <div id="mint-result"></div>
+    </section>
+  </main>
+
+  <script>
+    (() => {
+      // -----------------------------------------------------------------
+      // API helper. Single chokepoint for fetch — handles JSON, 401 redirect,
+      // and error mapping.
+      // -----------------------------------------------------------------
+      const api = async (path, options = {}) => {
+        const init = {
+          credentials: 'same-origin',
+          ...options,
+          headers: {
+            'Accept': 'application/json',
+            ...(options.body ? { 'Content-Type': 'application/json' } : {}),
+            ...(options.headers || {}),
+          },
+        };
+        const res = await fetch(path, init);
+        if (res.status === 401) {
+          window.location.href = '/';
+          throw new Error('unauthenticated');
+        }
+        let body = null;
+        const ct = res.headers.get('Content-Type') || '';
+        if (ct.includes('application/json')) {
+          try { body = await res.json(); } catch { body = null; }
+        }
+        if (!res.ok) {
+          const err = new Error((body && body.error) || `http_${res.status}`);
+          err.status = res.status;
+          err.body = body;
+          throw err;
+        }
+        return body;
+      };
+
+      // -----------------------------------------------------------------
+      // Utility: relative time formatter ("2 hours ago" etc).
+      // -----------------------------------------------------------------
+      const relTime = (ms) => {
+        if (!ms || !Number.isFinite(ms)) return '—';
+        const diff = Date.now() - ms;
+        if (diff < 0) return 'just now';
+        const sec = Math.floor(diff / 1000);
+        if (sec < 60) return `${sec}s ago`;
+        const min = Math.floor(sec / 60);
+        if (min < 60) return `${min} minute${min === 1 ? '' : 's'} ago`;
+        const hr = Math.floor(min / 60);
+        if (hr < 24) return `${hr} hour${hr === 1 ? '' : 's'} ago`;
+        const day = Math.floor(hr / 24);
+        if (day < 30) return `${day} day${day === 1 ? '' : 's'} ago`;
+        const mo = Math.floor(day / 30);
+        if (mo < 12) return `${mo} month${mo === 1 ? '' : 's'} ago`;
+        const yr = Math.floor(day / 365);
+        return `${yr} year${yr === 1 ? '' : 's'} ago`;
+      };
+
+      // -----------------------------------------------------------------
+      // Profile name validation (mirror of broker regex).
+      // -----------------------------------------------------------------
+      const PROFILE_RE = /^[a-z][a-z0-9-]{0,63}$/;
+
+      // -----------------------------------------------------------------
+      // DOM refs.
+      // -----------------------------------------------------------------
+      const emailEl = document.querySelector('#me-email');
+      const profilesListEl = document.querySelector('#profiles-list');
+      const newLoginForm = document.querySelector('#new-login-form');
+      const newProfileInput = document.querySelector('#new-profile-name');
+      const newProfileError = document.querySelector('#new-profile-error');
+      const jailContainer = document.querySelector('#jail-container');
+      const mintProfileSel = document.querySelector('#mint-profile');
+      const mintActionSel = document.querySelector('#mint-action');
+      const mintTtlInput = document.querySelector('#mint-ttl');
+      const mintTtlLabel = document.querySelector('#mint-ttl-label');
+      const mintForm = document.querySelector('#mint-form');
+      const mintSubmit = document.querySelector('#mint-submit');
+      const mintResult = document.querySelector('#mint-result');
+
+      // -----------------------------------------------------------------
+      // TTL slider mapping: discrete 1h / 4h / 24h.
+      // -----------------------------------------------------------------
+      const TTL_STEPS = [
+        { label: '1h', seconds: 3600 },
+        { label: '4h', seconds: 4 * 3600 },
+        { label: '24h', seconds: 24 * 3600 },
+      ];
+      const ttlSelected = () => TTL_STEPS[Number(mintTtlInput.value)] || TTL_STEPS[1];
+      const updateTtlLabel = () => { mintTtlLabel.textContent = ttlSelected().label; };
+      mintTtlInput.addEventListener('input', updateTtlLabel);
+      updateTtlLabel();
+
+      // -----------------------------------------------------------------
+      // Payload-shape helper. For google.whoami the shape is empty.
+      // -----------------------------------------------------------------
+      const payloadShapeFor = (actionId) => {
+        if (actionId === 'google.whoami') return {};
+        return {};
+      };
+
+      // -----------------------------------------------------------------
+      // Profiles state (single source of truth) — keeps the mint dropdown
+      // in sync with the profile list.
+      // -----------------------------------------------------------------
+      let profiles = [];
+
+      const renderProfiles = () => {
+        profilesListEl.replaceChildren();
+        if (!profiles.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No profiles yet. Log in to your first service below.';
+          profilesListEl.append(empty);
+        } else {
+          const wrap = document.createElement('div');
+          wrap.className = 'profiles';
+          for (const p of profiles) {
+            const row = document.createElement('div');
+            row.className = 'profile-row';
+
+            const nameEl = document.createElement('div');
+            nameEl.className = 'name';
+            nameEl.textContent = p.name;
+            row.append(nameEl);
+
+            const metaEl = document.createElement('div');
+            metaEl.className = 'meta';
+            const mtimeMs = typeof p.mtime === 'number'
+              ? (p.mtime > 1e12 ? p.mtime : p.mtime * 1000)
+              : Date.parse(p.mtime);
+            metaEl.textContent = `saved ${relTime(mtimeMs)}${p.has_blob === false ? ' · no blob' : ''}`;
+            row.append(metaEl);
+
+            const actions = document.createElement('div');
+            actions.className = 'actions';
+
+            const reauth = document.createElement('button');
+            reauth.type = 'button';
+            reauth.className = 'ghost small';
+            reauth.textContent = 'Reauth';
+            reauth.addEventListener('click', () => openJail(p.name, true));
+            actions.append(reauth);
+
+            const del = document.createElement('button');
+            del.type = 'button';
+            del.className = 'danger small';
+            del.textContent = 'Delete';
+            del.addEventListener('click', () => deleteProfile(p.name));
+            actions.append(del);
+
+            row.append(actions);
+            wrap.append(row);
+          }
+          profilesListEl.append(wrap);
+        }
+        renderMintProfileOptions();
+      };
+
+      const renderMintProfileOptions = () => {
+        mintProfileSel.replaceChildren();
+        if (!profiles.length) {
+          const opt = document.createElement('option');
+          opt.value = '';
+          opt.textContent = 'No profiles. Log in to one first.';
+          mintProfileSel.append(opt);
+          mintProfileSel.disabled = true;
+          mintSubmit.disabled = true;
+          return;
+        }
+        for (const p of profiles) {
+          const opt = document.createElement('option');
+          opt.value = p.name;
+          opt.textContent = p.name;
+          mintProfileSel.append(opt);
+        }
+        mintProfileSel.disabled = false;
+        mintSubmit.disabled = false;
+      };
+
+      const loadProfiles = async () => {
+        try {
+          const body = await api('/api/profiles');
+          const list = Array.isArray(body && body.profiles) ? body.profiles : [];
+          profiles = list.filter((p) => p && typeof p.name === 'string');
+        } catch (err) {
+          profiles = [];
+        }
+        renderProfiles();
+      };
+
+      // -----------------------------------------------------------------
+      // Profile delete.
+      // -----------------------------------------------------------------
+      const deleteProfile = async (name) => {
+        if (!window.confirm(`Delete profile ${name}? This cannot be undone.`)) return;
+        try {
+          await api(`/api/profiles/${encodeURIComponent(name)}`, { method: 'DELETE' });
+          profiles = profiles.filter((p) => p.name !== name);
+          renderProfiles();
+        } catch (err) {
+          window.alert(`Could not delete: ${err.message}`);
+        }
+      };
+
+      // -----------------------------------------------------------------
+      // Browser jail (fresh login or reauth). Iframe sandbox MUST NOT
+      // include the top-navigation token — see Phase 7 grep guard.
+      // The Save button lives in dashboard chrome, never inside the iframe.
+      // -----------------------------------------------------------------
+      const openJail = async (name, restore) => {
+        if (!PROFILE_RE.test(name)) {
+          newProfileError.textContent = 'Invalid profile name. Use lowercase letters, digits, hyphens; start with a letter.';
+          return;
+        }
+        newProfileError.textContent = '';
+        jailContainer.replaceChildren();
+        const loading = document.createElement('div');
+        loading.className = 'jail-status';
+        loading.textContent = `Starting browser jail for ${name}…`;
+        jailContainer.append(loading);
+
+        let session;
+        try {
+          const body = restore ? JSON.stringify({ restore: true }) : '{}';
+          session = await api(`/api/profiles/${encodeURIComponent(name)}/start-login`, {
+            method: 'POST',
+            body,
+          });
+        } catch (err) {
+          jailContainer.replaceChildren();
+          const banner = document.createElement('div');
+          banner.className = 'banner error';
+          banner.textContent = `Could not start jail: ${err.message}`;
+          jailContainer.append(banner);
+          return;
+        }
+        if (!session || typeof session.neko_url !== 'string') {
+          jailContainer.replaceChildren();
+          const banner = document.createElement('div');
+          banner.className = 'banner error';
+          banner.textContent = 'Server did not return a jail URL.';
+          jailContainer.append(banner);
+          return;
+        }
+
+        renderJail(name, session, restore);
+      };
+
+      const renderJail = (name, session, restore) => {
+        jailContainer.replaceChildren();
+        const wrap = document.createElement('div');
+        wrap.className = 'jail';
+
+        const toolbar = document.createElement('div');
+        toolbar.className = 'jail-toolbar';
+
+        const label = document.createElement('div');
+        label.className = 'label';
+        const action = restore ? 'Reauthing' : 'Logging in to';
+        label.append(document.createTextNode(`${action} `));
+        const strong = document.createElement('strong');
+        strong.textContent = name;
+        label.append(strong);
+        if (restore && session.restore_supported === false) {
+          label.append(document.createTextNode(' · (existing profile could not be restored — fresh login)'));
+        }
+        toolbar.append(label);
+
+        const actions = document.createElement('div');
+        actions.className = 'jail-actions';
+
+        const saveBtn = document.createElement('button');
+        saveBtn.type = 'button';
+        saveBtn.textContent = 'Save profile';
+        actions.append(saveBtn);
+
+        const cancelBtn = document.createElement('button');
+        cancelBtn.type = 'button';
+        cancelBtn.className = 'ghost';
+        cancelBtn.textContent = 'Cancel';
+        actions.append(cancelBtn);
+
+        toolbar.append(actions);
+        wrap.append(toolbar);
+
+        // The hostile content boundary. Sandbox is intentionally minimal:
+        //   allow-same-origin allow-scripts allow-forms
+        // Do NOT add the top-navigation token, popups, modals, or pointer-lock
+        // — the jail must not be able to navigate or pop out of this tab.
+        const frame = document.createElement('iframe');
+        frame.className = 'jail-frame';
+        frame.setAttribute('sandbox', 'allow-same-origin allow-scripts allow-forms');
+        frame.setAttribute('referrerpolicy', 'no-referrer');
+        // The neko URL is a different origin (Fly host). Browser origin policy
+        // already prevents humanish_session cookies from leaking. We never read
+        // document.cookie anywhere in this file.
+        frame.src = session.neko_url;
+        wrap.append(frame);
+
+        if (session.neko_password_hint) {
+          const hint = document.createElement('div');
+          hint.className = 'jail-status';
+          hint.textContent = `Neko hint: ${session.neko_password_hint}`;
+          wrap.append(hint);
+        }
+
+        const status = document.createElement('div');
+        status.className = 'jail-status';
+        status.textContent = 'When you have finished signing in, click "Save profile" above.';
+        wrap.append(status);
+
+        jailContainer.append(wrap);
+
+        cancelBtn.addEventListener('click', () => {
+          jailContainer.replaceChildren();
+        });
+
+        saveBtn.addEventListener('click', async () => {
+          saveBtn.disabled = true;
+          cancelBtn.disabled = true;
+          status.textContent = 'Saving…';
+          try {
+            const body = await api(`/api/profiles/${encodeURIComponent(name)}/save`, {
+              method: 'POST',
+              body: '{}',
+            });
+            jailContainer.replaceChildren();
+            const ok = document.createElement('div');
+            ok.className = 'banner';
+            const bytes = body && typeof body.bytes === 'number' ? body.bytes : null;
+            ok.textContent = bytes !== null
+              ? `Profile ${name} saved. ${bytes} bytes.`
+              : `Profile ${name} saved.`;
+            jailContainer.append(ok);
+            await loadProfiles();
+          } catch (err) {
+            status.textContent = `Save failed: ${err.message}`;
+            saveBtn.disabled = false;
+            cancelBtn.disabled = false;
+          }
+        });
+      };
+
+      // -----------------------------------------------------------------
+      // New-login form wiring.
+      // -----------------------------------------------------------------
+      newLoginForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const name = newProfileInput.value.trim().toLowerCase();
+        if (!PROFILE_RE.test(name)) {
+          newProfileError.textContent = 'Invalid profile name. Use lowercase letters, digits, hyphens; start with a letter.';
+          return;
+        }
+        newProfileError.textContent = '';
+        openJail(name, false);
+      });
+
+      newProfileInput.addEventListener('input', () => {
+        if (newProfileError.textContent) newProfileError.textContent = '';
+      });
+
+      // -----------------------------------------------------------------
+      // Mint a slug.
+      // -----------------------------------------------------------------
+      mintForm.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        mintResult.replaceChildren();
+        const profile = mintProfileSel.value;
+        const action_id = mintActionSel.value;
+        const ttl = ttlSelected();
+        if (!profile) return;
+        mintSubmit.disabled = true;
+        try {
+          const body = await api('/api/mint', {
+            method: 'POST',
+            body: JSON.stringify({
+              profile,
+              action_id,
+              payload_shape: payloadShapeFor(action_id),
+              ttl_seconds: ttl.seconds,
+            }),
+          });
+          if (!body || typeof body.url !== 'string') {
+            throw new Error('mint_no_url');
+          }
+          let copied = false;
+          try {
+            await navigator.clipboard.writeText(body.url);
+            copied = true;
+          } catch {
+            copied = false;
+          }
+          const banner = document.createElement('div');
+          banner.className = 'banner';
+          banner.textContent = copied
+            ? 'Copied. Paste into Claude.'
+            : 'Slug minted. Copy the URL below — clipboard was not available.';
+          const url = document.createElement('span');
+          url.className = 'url';
+          url.textContent = body.url;
+          banner.append(url);
+          const extra = document.createElement('span');
+          extra.className = 'extra';
+          const link = document.createElement('a');
+          link.href = body.url;
+          link.target = '_blank';
+          link.rel = 'noopener noreferrer';
+          link.textContent = 'Open slug in new tab';
+          extra.append(link);
+          banner.append(extra);
+          mintResult.append(banner);
+        } catch (err) {
+          const banner = document.createElement('div');
+          banner.className = 'banner error';
+          banner.textContent = `Mint failed: ${err.message}`;
+          mintResult.append(banner);
+        } finally {
+          mintSubmit.disabled = profiles.length === 0;
+        }
+      });
+
+      // -----------------------------------------------------------------
+      // Bootstrap.
+      // -----------------------------------------------------------------
+      const bootstrap = async () => {
+        try {
+          const me = await api('/api/me');
+          emailEl.textContent = (me && me.email) || '';
+        } catch {
+          // api() already redirected on 401.
+          return;
+        }
+        await loadProfiles();
+      };
+      bootstrap();
+    })();
+  </script>
+</body>
+</html>
