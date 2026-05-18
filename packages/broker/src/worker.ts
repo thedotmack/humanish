@@ -32,42 +32,16 @@ import {
 } from "./session.js";
 import { EFF_LONG_SLUG_SAFE, EFF_LONG_SLUG_SAFE_SET } from "./wordlist.js";
 
+// Page + skill-template assets bundled by wrangler's Text module rules
+// (see wrangler.toml `[[rules]]`). Each import is the file contents as a
+// string at build time — no filesystem access at runtime.
+import LANDING_HTML from "./pages/landing.html";
+import DASHBOARD_HTML from "./pages/dashboard.html";
+import SLUG_HTML_TEMPLATE from "./pages/slug.html.template";
+import DEAD_SLUG_HTML from "./pages/dead-slug.html";
+import SKILL_TEMPLATE_GOOGLE_WHOAMI from "./skill-templates/google.whoami.md.template";
+
 export { SlugBox } from "./slug-box.js";
-
-// ---------------------------------------------------------------------------
-// PHASE_5_PLACEHOLDER — replaced in Phase 5 with the real page content from
-// packages/broker/src/pages/*.html. Inlined as string constants so the Worker
-// bundle has no filesystem dependency.
-// ---------------------------------------------------------------------------
-
-const LANDING_HTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>humanish</title></head>
-<body><h1>humanish</h1><p>broker MVP — landing placeholder</p></body></html>`;
-
-const DASHBOARD_HTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>humanish dashboard</title></head>
-<body><h1>dashboard</h1><p>signed in</p></body></html>`;
-
-const SLUG_HTML_TEMPLATE = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>humanish slug</title></head>
-<body><pre>{{MARKDOWN_HTML_ESCAPED}}</pre></body></html>`;
-
-const DEAD_SLUG_HTML = `<!doctype html>
-<html lang="en"><head><meta charset="utf-8"><title>slug consumed</title></head>
-<body><h1>This slug is dead.</h1><p>One-shot slugs can only be opened once.</p></body></html>`;
-
-const SKILL_TEMPLATE_GOOGLE_WHOAMI = `# google.whoami
-
-Call:
-  curl -X POST {{ACTION_URL}} \\
-    -H "Authorization: Bearer {{BEARER}}" \\
-    -H "Content-Type: application/json" \\
-    -d '{}'
-
-PROFILE: {{PROFILE}}
-ACTION_ID: {{ACTION_ID}}
-EXPIRES_AT: {{EXPIRES_AT}}
-`;
 
 // ---------------------------------------------------------------------------
 // Routing

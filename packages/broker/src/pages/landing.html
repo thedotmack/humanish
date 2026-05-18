@@ -1,6 +1,111 @@
 <!doctype html>
-<html>
-  <body>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <title>humanish — credential broker</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #fafaf7;
+      color: #1a1a1a;
+      line-height: 1.5;
+      padding: 3rem 1rem;
+    }
+    main {
+      max-width: 480px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 2rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.02em;
+    }
+    p.tagline {
+      color: #4a4a4a;
+      margin: 0 0 2rem;
+    }
+    form {
+      display: flex;
+      flex-direction: column;
+      gap: 0.75rem;
+    }
+    label {
+      display: flex;
+      flex-direction: column;
+      gap: 0.35rem;
+      font-size: 0.9rem;
+      color: #2a2a2a;
+    }
+    input[type="email"] {
+      font: inherit;
+      padding: 0.55rem 0.75rem;
+      border: 1px solid #d0cec7;
+      border-radius: 6px;
+      background: #fff;
+    }
+    input[type="email"]:focus {
+      outline: 2px solid #1a1a1a;
+      outline-offset: -1px;
+      border-color: #1a1a1a;
+    }
+    button {
+      font: inherit;
+      padding: 0.6rem 1rem;
+      background: #1a1a1a;
+      color: #fafaf7;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+    }
+    button:hover { background: #333; }
+    #status {
+      margin-top: 1rem;
+      padding: 0.6rem 0.75rem;
+      background: #f0eee7;
+      border-radius: 6px;
+      font-size: 0.9rem;
+      color: #2a2a2a;
+    }
+  </style>
+</head>
+<body>
+  <main>
     <h1>humanish</h1>
-  </body>
+    <p class="tagline">cookies for your AI · single-use, scoped, signed by the human</p>
+    <form id="signin" method="post" action="/api/auth/request">
+      <label>
+        email
+        <input type="email" name="email" required autocomplete="email">
+      </label>
+      <button type="submit">Send sign-in link</button>
+    </form>
+    <p id="status" hidden></p>
+  </main>
+  <script>
+    document.getElementById('signin').addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var fd = new FormData(e.target);
+      var email = fd.get('email');
+      var status = document.getElementById('status');
+      status.hidden = false;
+      status.textContent = 'Sending...';
+      try {
+        var r = await fetch('/api/auth/request', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ email: email }),
+        });
+        if (r.ok) status.textContent = 'Check your inbox. The link expires in 15 minutes.';
+        else status.textContent = 'Could not send. Make sure your email is allowed.';
+      } catch (_) {
+        status.textContent = 'Network error. Try again in a moment.';
+      }
+    });
+  </script>
+</body>
 </html>

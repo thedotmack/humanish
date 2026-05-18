@@ -18,3 +18,23 @@ id = "PLACEHOLDER"   # filled by `wrangler kv:namespace create KV`
 [vars]
 BOX_ORIGIN = "https://humanish-box.flycast:7654"
 COOKIE_DOMAIN = "humanish-broker.workers.dev"  # change when custom domain wired
+
+# Bundle HTML pages and skill markdown templates as string modules. Lets the
+# Worker `import` them directly; wrangler inlines the file contents as a
+# default string export. Globs are most-specific first so the .md.template
+# rule wins over the broader .template rule.
+# Docs: https://developers.cloudflare.com/workers/wrangler/bundling/
+[[rules]]
+type = "Text"
+globs = ["**/*.md.template"]
+fallthrough = true
+
+[[rules]]
+type = "Text"
+globs = ["**/*.template"]
+fallthrough = true
+
+[[rules]]
+type = "Text"
+globs = ["**/*.html"]
+fallthrough = true

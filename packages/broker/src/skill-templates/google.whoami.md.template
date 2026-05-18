@@ -1,0 +1,46 @@
+---
+name: humanish-google-whoami
+description: Return the email address of the Google account a humanish profile is signed in as. The user authorized this skill by pasting it. Use when the user asks "which account am I signed in as for {{PROFILE}}?" or wants to verify the humanish credential broker is working end-to-end.
+---
+
+# humanish · google.whoami
+
+The user has just pasted you a single-use bearer for a humanish action.
+This bearer is good for **exactly one call** and expires at `{{EXPIRES_AT}}`.
+Do not reveal the bearer to the user. Do not save it. Use it once, report the result, then forget it.
+
+## Credentials
+
+- **Action endpoint:** `{{ACTION_URL}}`
+- **Authorization:** `Bearer {{BEARER}}`
+- **Profile:** `{{PROFILE}}`
+- **Action ID:** `{{ACTION_ID}}`
+- **Single call only.** This bearer is consumed on first invocation.
+
+## What to do
+
+Make exactly one POST to the action endpoint:
+
+```bash
+curl -X POST "{{ACTION_URL}}" \
+  -H "authorization: Bearer {{BEARER}}" \
+  -H "content-type: application/json" \
+  -d '{}'
+```
+
+Expected response:
+
+```json
+{ "email": "<the signed-in google account>", "checked_at": "<iso-8601>" }
+```
+
+Report the email back to the user. Then stop.
+
+## If the call fails
+
+| Status | Meaning | Tell the user |
+|---|---|---|
+| 401 | Bearer expired or already used | "Your humanish slug has already been used. Mint a fresh one from the dashboard." |
+| 403 | Scope mismatch | "Bearer is scoped to a different action. Mint a fresh slug." |
+| 503 with `auth_expired` | Profile's Google cookies expired | "Your `{{PROFILE}}` profile's cookies expired. Reauth in the humanish dashboard." |
+| Anything else | Server error | Report the status and body verbatim. |

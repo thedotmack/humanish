@@ -1,0 +1,96 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex, nofollow">
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'">
+  <title>humanish — your skill is below</title>
+  <style>
+    :root { color-scheme: light; }
+    * { box-sizing: border-box; }
+    html, body { margin: 0; padding: 0; }
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+      background: #fafaf7;
+      color: #1a1a1a;
+      line-height: 1.5;
+      padding: 2rem 1rem;
+    }
+    main {
+      max-width: 720px;
+      margin: 0 auto;
+    }
+    h1 {
+      font-size: 1.6rem;
+      font-weight: 600;
+      margin: 0 0 0.5rem;
+      letter-spacing: -0.01em;
+    }
+    p {
+      margin: 0 0 1rem;
+      color: #2a2a2a;
+    }
+    p.lede {
+      color: #4a4a4a;
+      margin-bottom: 1.25rem;
+    }
+    button {
+      font: inherit;
+      font-size: 0.95rem;
+      padding: 0.55rem 1rem;
+      background: #1a1a1a;
+      color: #fafaf7;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      margin-bottom: 1rem;
+    }
+    button:hover { background: #333; }
+    button:focus-visible { outline: 2px solid #1a1a1a; outline-offset: 2px; }
+    pre {
+      background: #f0eee7;
+      border: 1px solid #e5e3dc;
+      border-radius: 6px;
+      padding: 1rem;
+      overflow: auto;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size: 0.85rem;
+      line-height: 1.45;
+      white-space: pre;
+      margin: 0 0 1.25rem;
+    }
+    pre code { background: none; padding: 0; font: inherit; color: inherit; }
+    footer {
+      margin-top: 1.5rem;
+      color: #6a6a6a;
+      font-size: 0.85rem;
+    }
+    footer a { color: #1a1a1a; }
+  </style>
+</head>
+<body>
+  <main>
+    <h1>Your skill is ready.</h1>
+    <p class="lede">Copy this. Paste it into a Claude chat. Your AI gets to be humanish for one task.</p>
+    <button id="copy" type="button">Copy skill markdown</button>
+    <pre><code id="md">{{MARKDOWN_HTML_ESCAPED}}</code></pre>
+    <footer>
+      <small>This slug just died. <a href="/dashboard">Mint another</a>.</small>
+    </footer>
+  </main>
+  <script>
+    (function () {
+      var btn = document.getElementById('copy');
+      var md = document.getElementById('md');
+      btn.addEventListener('click', function () {
+        navigator.clipboard.writeText(md.innerText).then(function () {
+          var prev = btn.textContent;
+          btn.textContent = 'Copied!';
+          setTimeout(function () { btn.textContent = prev; }, 2000);
+        });
+      });
+    })();
+  </script>
+</body>
+</html>
