@@ -1,34 +1,19 @@
-# neko v3 configuration.
+# neko v3 configuration (non-secret config only).
 #
-# IMPORTANT: env var interpolation syntax in neko configs varies between
-# minor versions. Some channels accept `${VAR}` directly, others require
-# the `${VAR:-default}` form, others want the value baked in at deploy
-# time. BEFORE FIRST DEPLOY, the operator MUST verify the exact syntax
-# against https://neko.m1k1o.net/docs/v3/configuration and adjust the
-# two `${...}` references below if needed. If interpolation isn't
-# supported in the YAML directly, set the values via NEKO_* env vars
-# (which neko reads natively) and remove them from this file.
+# Secrets are passed via Fly env vars — Viper-based config does not expand
+# `${VAR}` syntax inside yaml, so anything that referenced an env var
+# previously is now set via the NEKO_* env namespace (see fly secrets list).
+#
+# Env vars set on the deployed app:
+#   NEKO_MEMBER_PROVIDER=multiuser
+#   NEKO_MEMBER_MULTIUSER_USER_PASSWORD=<random>
+#   NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=<random>
+#   NEKO_SESSION_API_TOKEN=<BOX_SHARED_SECRET, same as broker uses>
 
 server:
   bind: ":8080"
   # Behind Fly's edge proxy — trust X-Forwarded-For for client IP logging.
   proxy: true
-
-# Single-user mode: one operator password, no signup, no anonymous.
-# Both user_password and admin_password are intentionally the same so
-# every authenticated session is admin (we're not exposing this UI to
-# end users — the operator is the only one who ever sees it).
-member:
-  provider: multiuser
-  multiuser:
-    user_password: ${NEKO_PASSWORD}
-    admin_password: ${NEKO_PASSWORD}
-
-session:
-  # The API token gates the neko REST API (we use shared secret with the
-  # action runner — the broker forwards control via the runner, not via
-  # this token, but having it set hardens the back door).
-  api_token: ${BOX_SHARED_SECRET}
 
 desktop:
   screen: "1280x720@30"
@@ -41,7 +26,7 @@ capture:
     enabled: false
 
 # Disable neko's built-in chat and file transfer so the user can't
-# exfiltrate data via the neko UI itself.
+# exfiltrate data via the neko UI itself. Neko v3 reads these from yaml.
 plugins:
   enabled: true
   dir: /etc/neko/plugins

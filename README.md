@@ -18,7 +18,7 @@ The whole point of humanish is to keep a secret (a logged-in cookie jar) out of 
 
 The **broker** is a Cloudflare Worker (`packages/broker/`). It is the only thing on the public internet. It does session auth, mints bearers, hosts the dashboard, and proxies a tightly-restricted subset of operations to the box.
 
-The **box** is a single Fly.io VM (`packages/box/`) that runs the [neko](https://github.com/m1k1o/neko) browser (for human login) and an action runner (Node + Fastify + Playwright). The action runner binds to IPv6 loopback (`::1`) and is reachable only by the broker over Fly's private network (Flycast). The internet cannot route packets to it at all. Auth between broker and box is a shared 32-byte secret compared in constant time.
+The **box** is a single Fly.io VM (`packages/box/`) that runs the [neko](https://github.com/m1k1o/neko) browser (for human login) and an action runner (Node + Fastify + Playwright). The action runner is exposed on a TLS-terminated public port (`8443` → internal `7654`) because Cloudflare Workers cannot reach Fly's private `*.flycast` hostnames. The actual defense is a shared 32-byte secret (`BOX_SHARED_SECRET`) carried as a bearer on every non-`/healthz` request, compared in constant time. TLS terminates at fly-proxy; the packet between fly-proxy and the runner stays inside the machine namespace.
 
 ### The human is the courier
 
@@ -95,42 +95,74 @@ pnpm install
 
 # Create the KV namespace. Paste the printed `id` into wrangler.toml under
 # [[kv_namespaces]] binding = "KV".
-wrangler kv:namespace create KV
+wrangler kv namespace create KV
 
-# Set secrets.
-wrangler secret put RESEND_API_KEY        # from resend.com
-wrangler secret put HUMANISH_MASTER_KEY   # generated above
-wrangler secret put BOX_SHARED_SECRET     # generated above
+# Set secrets (non-interactive via STDIN).
+echo -n "<resend-api-key>"     | wrangler secret put RESEND_API_KEY
+echo -n "<humanish-master-key>" | wrangler secret put HUMANISH_MASTER_KEY
+echo -n "<box-shared-secret>"   | wrangler secret put BOX_SHARED_SECRET
+echo -n "humanish@yourdomain.com" | wrangler secret put FROM_EMAIL
+echo -n "your-email@example.com" | wrangler secret put ALLOWED_EMAILS
 
-# Set vars in wrangler.toml [vars]:
-#   BOX_ORIGIN      = "https://humanish-box.flycast:7654"
-#   COOKIE_DOMAIN   = "humanish-broker.workers.dev" (or your apex)
-#   FROM_EMAIL      = "humanish@yourdomain.com"
-#   ALLOWED_EMAILS  = "your-email@example.com" (comma-separated, case-insensitive)
+# wrangler.toml [vars] (non-secret):
+#   BOX_ORIGIN     = "https://humanish-box.fly.dev:8443"  (public TLS endpoint;
+#                    Cloudflare Workers can't reach *.flycast hosts)
+#   COOKIE_DOMAIN  = "<your-broker-subdomain>.workers.dev" (the workers.dev URL
+#                    that wrangler deploy prints — it's not always "humanish-broker"
+#                    if there's a collision)
 
 wrangler deploy
 ```
 
+> **Note on `RESEND_API_KEY`.** Until you set a real key, the broker logs the
+> magic link to the Worker tail (visible via `wrangler tail`) instead of
+> trying to send mail. This lets first sign-in work before you finish
+> wiring Resend. Set a real key as soon as you have one.
+
 ### 2. Fly machine (box)
 
 ```bash
-cd ../box
-fly launch -c fly.toml --no-deploy   # accept name 'humanish-box' or pick your own
-fly volumes create humanish_data --size 1 --region sjc
+cd ../..   # back to repo root — fly deploy needs the repo root as build context
 
-# Same two secrets, plus neko's own password.
-fly secrets set HUMANISH_MASTER_KEY="<paste>" \
-                BOX_SHARED_SECRET="<paste>" \
-                NEKO_PASSWORD="<choose a strong one>"
+fly apps create humanish-box --org personal
+fly volumes create humanish_data --size 3 --region sjc --app humanish-box
 
-fly deploy
+# Allocate IPs (workers.dev needs to reach over the public internet).
+fly ips allocate-v4 --shared --app humanish-box
+fly ips allocate-v6 --app humanish-box
+
+# Secrets — HUMANISH_MASTER_KEY + BOX_SHARED_SECRET MUST match the broker's.
+# Set both v2 (NEKO_PASSWORD, needed by the action runner's env schema) AND
+# v3 (NEKO_MEMBER_MULTIUSER_*) neko vars. (Neko's upstream image bakes v2
+# defaults that re-enable legacy mode; this is the known caveat below.)
+fly secrets set \
+  HUMANISH_MASTER_KEY="<paste>" \
+  BOX_SHARED_SECRET="<paste>" \
+  NEKO_PASSWORD="<choose a strong one>" \
+  NEKO_MEMBER_PROVIDER="multiuser" \
+  NEKO_MEMBER_MULTIUSER_USER_PASSWORD="<same neko password>" \
+  NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD="<same neko password>" \
+  NEKO_SESSION_API_TOKEN="<same as BOX_SHARED_SECRET>" \
+  --app humanish-box --stage
+
+fly deploy --config packages/box/fly.toml --dockerfile packages/box/Dockerfile --remote-only
 ```
 
 Confirm the action runner is healthy:
 
 ```bash
-fly ssh console -C "curl -s http://[::1]:7654/healthz"
+curl -s https://humanish-box.fly.dev:8443/healthz
 # → {"ok":true,"ts":"..."}
+```
+
+Confirm the bearer gate works:
+
+```bash
+curl -s https://humanish-box.fly.dev:8443/profiles
+# → {"error":"unauthorized"}
+curl -s -H "Authorization: Bearer <BOX_SHARED_SECRET>" \
+       https://humanish-box.fly.dev:8443/profiles
+# → {"profiles":[]}
 ```
 
 ### 3. First profile
@@ -180,6 +212,26 @@ Every action call appends a line to `/data/audit.log` on the Fly volume (tab-sep
 ### Expired-cookie UX
 
 When an action returns 503 `auth_expired` (the box noticed Playwright bounced to a login page), the broker writes `expired:<profile>` to KV for 30 days. The dashboard's profile list shows that profile as `status: "expired"` and surfaces a yellow banner with a *Reauth* button that runs the *Add profile* login flow again.
+
+---
+
+## Known caveats
+
+### Neko v2 legacy mode is active
+
+The upstream `ghcr.io/m1k1o/neko/chromium:latest` image bakes `NEKO_MEMBER_MULTIUSER_USER_PASS` (no `_WORD`, v2 syntax) into the image at build time. Setting it via Fly secrets — even with the v3 name — does not unset the image-level default, and the v2 env var is enough to trigger neko's "legacy configuration is enabled" mode, which silently ignores `plugins.config.chat.enabled: false` and `plugins.config.filetransfer.enabled: false` in `neko.yaml`. Chat and file-transfer plugins therefore start in spite of the YAML.
+
+For a single-user MVP this is not a security defect: the dashboard embeds neko in an `allow-same-origin allow-scripts allow-forms` iframe (no `allow-top-navigation`, no `allow-popups`), so a malicious page inside neko cannot pop the iframe. The chat plugin needs a second user (there isn't one). The file-transfer plugin would only let the operator move files to/from the box — they already control the box.
+
+The fix is to fork the upstream image with `ENV NEKO_MEMBER_MULTIUSER_USER_PASS=` (empty) baked at build time, or to pin a future neko release where this is configurable. Tracked as a follow-up.
+
+### Resend placeholder bypass
+
+When `RESEND_API_KEY` starts with `re_PLACEHOLDER_`, `auth.ts` skips the Resend API call and logs the magic URL via `wrangler tail`. This is intentional: it lets first sign-in work on a fresh deploy before the operator has finished wiring Resend. Replace the secret with a real key before sharing the broker URL with anyone else.
+
+### IPv6 bind dropped
+
+The action runner originally bound `[::1]:7654` per the plan's "Flycast-only" model. Workers cannot reach `*.flycast`, so it now binds `0.0.0.0:7654` and is exposed as a public TLS port — gated by `BOX_SHARED_SECRET`. The bearer + TLS combo is the actual defense; the bind change does not weaken the threat model for the documented scope (single operator behind a sole shared secret).
 
 ---
 

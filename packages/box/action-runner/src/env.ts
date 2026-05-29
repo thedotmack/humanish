@@ -25,8 +25,20 @@ const EnvSchema = z.object({
   BOX_SHARED_SECRET: z.string().min(32),
   // Public URL of the neko UI; only used to hand the broker an embed URL.
   NEKO_URL: z.string().url().default("http://localhost:8080"),
-  // Password for the neko single-user mode. Operator-only.
-  NEKO_PASSWORD: z.string().min(8),
+  // Password for the neko single-user mode. Operator-only. We accept either
+  // the v3 form (NEKO_MEMBER_MULTIUSER_USER_PASSWORD) or the v2 legacy form
+  // (NEKO_PASSWORD). Using v3 alone keeps neko out of legacy mode (which
+  // silently ignores plugin disable flags). The action runner only relays
+  // this back to the dashboard as a hint for the iframe URL hash.
+  NEKO_PASSWORD: z
+    .preprocess(
+      () =>
+        process.env.NEKO_MEMBER_MULTIUSER_USER_PASSWORD ??
+        process.env.NEKO_PASSWORD ??
+        "",
+      z.string().min(8),
+    )
+    .or(z.string().min(8)),
   // Chrome DevTools Protocol endpoint of the neko-managed Chromium.
   // MUST be loopback-bound; never publicly exposed.
   CDP_URL: z.string().url().default("http://127.0.0.1:9223"),
