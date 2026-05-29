@@ -157,6 +157,14 @@ async function route(req: Request, env: Env): Promise<Response> {
   }
 
   // -----------------------------------------------------------------
+  // Audit feed — session-gated. Proxies to box /audit, parses TSV records,
+  // strips request_id (internal trace ID) before returning.
+  // -----------------------------------------------------------------
+  if (method === "GET" && path === "/api/audit") {
+    return withSession(req, env, () => handleAuditList(env));
+  }
+
+  // -----------------------------------------------------------------
   // Action call (bearer-gated, public)
   // -----------------------------------------------------------------
   const actionCall = path.match(
@@ -493,6 +501,60 @@ async function handleProfilesList(env: Env): Promise<Response> {
   return jsonResponse({ profiles: decorated }, 200);
 }
 
+/**
+ * GET /api/audit — fetches the last 100 raw TSV audit lines from the box,
+ * parses each into a structured record, and returns the last 100 newest-first.
+ * We strip request_id before returning — it's an internal trace ID with no
+ * value to the dashboard. Malformed lines are skipped silently.
+ */
+async function handleAuditList(env: Env): Promise<Response> {
+  const boxRes = await fetch(`${env.BOX_ORIGIN}/audit`, {
+    headers: {
+      Authorization: `Bearer ${env.BOX_SHARED_SECRET}`,
+      "Content-Type": "application/json",
+    },
+  });
+  if (boxRes.status !== 200) {
+    return jsonResponse({ error: "upstream_audit_failed", status: boxRes.status }, 502);
+  }
+  let parsed: { lines?: unknown } = {};
+  try {
+    parsed = (await boxRes.json()) as { lines?: unknown };
+  } catch {
+    return jsonResponse({ error: "upstream_invalid_json" }, 502);
+  }
+  const rawLines = Array.isArray(parsed.lines) ? parsed.lines : [];
+  const entries: Array<{
+    ts: string;
+    profile: string;
+    action_id: string;
+    status: string;
+    bytes: number;
+  }> = [];
+  for (const line of rawLines) {
+    if (typeof line !== "string") continue;
+    // Format: <iso>\t<request_id>\t<profile>\t<action_id>\t<status>\t<bytes>
+    const parts = line.split("\t");
+    if (parts.length < 6) continue;
+    const ts = parts[0] as string;
+    // parts[1] is request_id — deliberately not exposed.
+    const profile = parts[2] as string;
+    const action_id = parts[3] as string;
+    const status = parts[4] as string;
+    const bytes = parseInt(parts[5] as string, 10);
+    entries.push({
+      ts,
+      profile,
+      action_id,
+      status,
+      bytes: Number.isFinite(bytes) ? bytes : 0,
+    });
+  }
+  // Limit to last 100 (audit endpoint already caps, but be defensive).
+  const limited = entries.slice(-100);
+  return jsonResponse({ entries: limited }, 200);
+}
+
 async function proxyToBox(
   env: Env,
   method: string,
@@ -558,12 +620,16 @@ function renderSkillMarkdown(action_id: string, vars: SkillTemplateVars): string
   // now we only have google.whoami; if more land before Phase 5, extend here.
   const template =
     action_id === "google.whoami" ? SKILL_TEMPLATE_GOOGLE_WHOAMI : SKILL_TEMPLATE_GOOGLE_WHOAMI;
+  // replaceAll — the template references each placeholder multiple times
+  // (e.g. {{PROFILE}} in the failure-mode table, {{BEARER}} in the curl
+  // example). String.replace replaces only the first match, which leaks
+  // raw placeholders into the rendered markdown.
   return template
-    .replace("{{BEARER}}", vars.bearer)
-    .replace("{{ACTION_URL}}", vars.action_url)
-    .replace("{{PROFILE}}", vars.profile)
-    .replace("{{ACTION_ID}}", vars.action_id)
-    .replace("{{EXPIRES_AT}}", vars.expires_at);
+    .replaceAll("{{BEARER}}", vars.bearer)
+    .replaceAll("{{ACTION_URL}}", vars.action_url)
+    .replaceAll("{{PROFILE}}", vars.profile)
+    .replaceAll("{{ACTION_ID}}", vars.action_id)
+    .replaceAll("{{EXPIRES_AT}}", vars.expires_at);
 }
 
 function logActionResult(

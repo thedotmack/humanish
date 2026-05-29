@@ -215,6 +215,37 @@
       border-color: #e6c3cd;
       color: #8b2545;
     }
+    .banner-warn {
+      background: #fff3cd;
+      color: #664d03;
+      padding: 8px;
+      border-radius: 4px;
+      font-size: 0.9rem;
+      margin-bottom: 0.4rem;
+    }
+    .profile-group {
+      display: flex;
+      flex-direction: column;
+    }
+    .activity-list {
+      display: flex;
+      flex-direction: column;
+      gap: 0.3rem;
+      font-family: ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace;
+      font-size: 0.85rem;
+      color: #2a2a2a;
+    }
+    .activity-list .entry {
+      padding: 0.4rem 0.6rem;
+      background: #fff;
+      border: 1px solid #eae8df;
+      border-radius: 6px;
+    }
+    .activity-list .more {
+      color: #6a6a6a;
+      font-style: italic;
+      padding: 0.2rem 0.6rem;
+    }
     .banner .url {
       display: block;
       margin-top: 0.4rem;
@@ -291,6 +322,11 @@
         </div>
       </form>
       <div id="mint-result"></div>
+    </section>
+
+    <section id="activity-section">
+      <h2>Recent activity</h2>
+      <div id="activity-list"></div>
     </section>
   </main>
 
@@ -371,6 +407,7 @@
       const mintForm = document.querySelector('#mint-form');
       const mintSubmit = document.querySelector('#mint-submit');
       const mintResult = document.querySelector('#mint-result');
+      const activityListEl = document.querySelector('#activity-list');
 
       // -----------------------------------------------------------------
       // TTL slider mapping: discrete 1h / 4h / 24h.
@@ -410,6 +447,17 @@
           const wrap = document.createElement('div');
           wrap.className = 'profiles';
           for (const p of profiles) {
+            const group = document.createElement('div');
+            group.className = 'profile-group';
+
+            const isExpired = p.status === 'expired';
+            if (isExpired) {
+              const warn = document.createElement('div');
+              warn.className = 'banner-warn';
+              warn.textContent = `⚠ ${p.name} session expired — Reauth to refresh`;
+              group.append(warn);
+            }
+
             const row = document.createElement('div');
             row.className = 'profile-row';
 
@@ -433,7 +481,7 @@
             reauth.type = 'button';
             reauth.className = 'ghost small';
             reauth.textContent = 'Reauth';
-            reauth.addEventListener('click', () => openJail(p.name, true));
+            reauth.addEventListener('click', () => reauthProfile(p.name));
             actions.append(reauth);
 
             const del = document.createElement('button');
@@ -444,7 +492,8 @@
             actions.append(del);
 
             row.append(actions);
-            wrap.append(row);
+            group.append(row);
+            wrap.append(group);
           }
           profilesListEl.append(wrap);
         }
@@ -481,6 +530,25 @@
           profiles = [];
         }
         renderProfiles();
+      };
+
+      // -----------------------------------------------------------------
+      // Reauth — best-effort clear of the expired marker, then open the jail
+      // in restore mode. The clear-expired call is fire-and-forget; if it
+      // fails the next list refresh after a successful save will still pick
+      // up the cleared state when the box resaves the profile (the marker
+      // is only set on action 503, not on save).
+      // -----------------------------------------------------------------
+      const reauthProfile = async (name) => {
+        try {
+          await api(`/api/profiles/${encodeURIComponent(name)}/clear-expired`, {
+            method: 'POST',
+            body: '{}',
+          });
+        } catch {
+          // Swallow — Reauth must still work even if the marker can't be cleared.
+        }
+        openJail(name, true);
       };
 
       // -----------------------------------------------------------------
@@ -715,6 +783,65 @@
       });
 
       // -----------------------------------------------------------------
+      // Recent activity. Fetches /api/audit and renders newest-first. Every
+      // text node is set via textContent — values are server-controlled
+      // (request_id is already stripped by the broker), but defense in
+      // depth: never interpolate into innerHTML.
+      // -----------------------------------------------------------------
+      const formatActivityTs = (iso) => {
+        const ms = Date.parse(iso);
+        if (!Number.isFinite(ms)) return iso;
+        const d = new Date(ms);
+        const yyyy = d.getFullYear();
+        const mm = String(d.getMonth() + 1).padStart(2, '0');
+        const dd = String(d.getDate()).padStart(2, '0');
+        const hh = String(d.getHours()).padStart(2, '0');
+        const mi = String(d.getMinutes()).padStart(2, '0');
+        return `${yyyy}-${mm}-${dd} ${hh}:${mi}`;
+      };
+
+      const loadAudit = async () => {
+        activityListEl.replaceChildren();
+        let entries = [];
+        try {
+          const body = await api('/api/audit');
+          entries = Array.isArray(body && body.entries) ? body.entries : [];
+        } catch {
+          entries = [];
+        }
+        if (!entries.length) {
+          const empty = document.createElement('div');
+          empty.className = 'empty';
+          empty.textContent = 'No activity yet.';
+          activityListEl.append(empty);
+          return;
+        }
+        // Newest-first (audit append-order is oldest-first).
+        const ordered = entries.slice().reverse();
+        const visible = ordered.slice(0, 50);
+        const wrap = document.createElement('div');
+        wrap.className = 'activity-list';
+        for (const e of visible) {
+          const entry = document.createElement('div');
+          entry.className = 'entry';
+          const ts = formatActivityTs(typeof e.ts === 'string' ? e.ts : '');
+          const action_id = typeof e.action_id === 'string' ? e.action_id : '';
+          const profile = typeof e.profile === 'string' ? e.profile : '';
+          const status = typeof e.status === 'string' ? e.status : '';
+          const bytes = typeof e.bytes === 'number' ? e.bytes : 0;
+          entry.textContent = `${ts} — ${action_id} on ${profile} — ${status} — ${bytes} bytes`;
+          wrap.append(entry);
+        }
+        if (ordered.length > visible.length) {
+          const more = document.createElement('div');
+          more.className = 'more';
+          more.textContent = `... and ${ordered.length - visible.length} more`;
+          wrap.append(more);
+        }
+        activityListEl.append(wrap);
+      };
+
+      // -----------------------------------------------------------------
       // Bootstrap.
       // -----------------------------------------------------------------
       const bootstrap = async () => {
@@ -726,6 +853,7 @@
           return;
         }
         await loadProfiles();
+        await loadAudit();
       };
       bootstrap();
     })();

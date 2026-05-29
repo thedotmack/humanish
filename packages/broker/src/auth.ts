@@ -9,11 +9,34 @@ import { htmlEscape, randomTokenHex } from "./crypto-util.js";
 
 const MAGIC_TTL_SECONDS = 15 * 60; // 15 minutes
 
+// Detect the placeholder so the operator's first session works even before
+// they've put a real Resend key. When detected, we log the magic URL to the
+// Worker tail (visible via `wrangler tail`) instead of trying to send mail.
+function isPlaceholderResendKey(key: string | undefined): boolean {
+  if (!key) return true;
+  return key.startsWith("re_PLACEHOLDER_") || key === "" || key === "unset";
+}
+
 export async function sendMagicLinkEmail(
   env: Env,
   email: string,
   magicUrl: string,
 ): Promise<void> {
+  if (isPlaceholderResendKey(env.RESEND_API_KEY)) {
+    // Operator hasn't wired Resend yet. Surface the magic link via
+    // `wrangler tail` so they can complete first-sign-in and then go
+    // configure Resend properly. NEVER reaches a real production user
+    // because the key validation in the README setup catches this state.
+    console.log(
+      JSON.stringify({
+        event: "magic_link_dev_log",
+        warning: "RESEND_API_KEY is a placeholder — link logged here for bootstrap. Set a real key via `wrangler secret put RESEND_API_KEY`.",
+        email,
+        magic_url: magicUrl,
+      }),
+    );
+    return;
+  }
   const escapedUrl = htmlEscape(magicUrl);
   const body = {
     from: env.FROM_EMAIL,

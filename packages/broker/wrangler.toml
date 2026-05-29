@@ -13,11 +13,16 @@ new_classes = ["SlugBox"]
 
 [[kv_namespaces]]
 binding = "KV"
-id = "PLACEHOLDER"   # filled by `wrangler kv:namespace create KV`
+id = "1d108315895e4a4896a6bbe040cbdc84"
 
 [vars]
-BOX_ORIGIN = "https://humanish-box.flycast:7654"
-COOKIE_DOMAIN = "humanish-broker.workers.dev"  # change when custom domain wired
+# Box public endpoint. Cloudflare Workers cannot reach Fly's private
+# `.flycast` hostnames, so we expose the action runner on a public TLS
+# port (8443) and gate it with BOX_SHARED_SECRET. See packages/box/fly.toml.
+BOX_ORIGIN = "https://humanish-box.fly.dev:8443"
+COOKIE_DOMAIN = "humanish-broker.black-pond-afbb.workers.dev"
+# FROM_EMAIL set via `wrangler secret put` so the address isn't checked in
+# ALLOWED_EMAILS likewise set via secret put
 
 # Bundle HTML pages and skill markdown templates as string modules. Lets the
 # Worker `import` them directly; wrangler inlines the file contents as a

@@ -36,14 +36,16 @@ RUN npm install --omit=dev --no-audit --no-fund
 # before `docker build`). The TypeScript sources are never copied — only dist.
 COPY packages/box/action-runner/dist ./dist
 
-# Container plumbing.
-COPY packages/box/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+# Drop the action runner into neko's supervisord include directory so it
+# starts alongside Xorg, openbox, neko, and chromium under the upstream
+# image's supervisord. We deliberately do NOT override ENTRYPOINT — the
+# base image already does the right thing (supervisord with full
+# desktop/audio/webrtc plumbing), and a hand-rolled entrypoint.sh was
+# bypassing Xorg init causing neko to panic on startup.
+COPY packages/box/action-runner.conf /etc/neko/supervisord/action-runner.conf
 
 COPY packages/box/neko.yaml /etc/neko.yaml
 
-# 7654: action runner (Flycast only — fly.toml has no http handlers on it).
+# 7654: action runner (public TLS on fly.toml, BOX_SHARED_SECRET-gated).
 # 8080: neko WebRTC + HTTP (public via fly.toml).
 EXPOSE 7654 8080
-
-ENTRYPOINT ["/entrypoint.sh"]

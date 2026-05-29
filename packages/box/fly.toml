@@ -2,9 +2,10 @@ app = "humanish-box"
 primary_region = "sjc"
 
 [build]
-  # Path relative to the repo root — `fly deploy -c packages/box/fly.toml`
-  # is invoked from the repo root.
-  dockerfile = "packages/box/Dockerfile"
+  # Path relative to the fly.toml directory (packages/box/).
+  # Deploy command: `flyctl deploy --config packages/box/fly.toml`
+  # invoked from the repo root, with build context set via --image-context.
+  dockerfile = "Dockerfile"
 
 # Encrypted profile blobs + audit log live on this volume so they
 # survive machine restarts and image redeploys.
@@ -12,18 +13,20 @@ primary_region = "sjc"
   source = "humanish_data"
   destination = "/data"
 
-# -------- action runner: Flycast only --------
-# 7654 is the action runner. We deliberately do NOT set any handlers
-# on this port — no `http`, no `tls`. That means it is reachable only
-# from inside the Fly private network (Flycast) by the broker.
-# The internet cannot route packets to this port at all.
+# -------- action runner: public TLS, shared-secret gated --------
+# 7654 (internal) is the action runner. Cloudflare Workers cannot reach
+# Fly's private Flycast hostnames, so we expose it on port 8443 publicly
+# with TLS termination at fly-proxy. The actual defense is the
+# BOX_SHARED_SECRET bearer check inside server.ts (constant-time compare)
+# — every route except /healthz requires it. No path on this port is ever
+# served unauthenticated except /healthz.
 [[services]]
   internal_port = 7654
   protocol = "tcp"
 
   [[services.ports]]
-    port = 7654
-    # handlers intentionally empty.
+    port = 8443
+    handlers = ["tls"]
 
 # -------- neko: public --------
 # 8080 is the neko UI (WebRTC + HTTP). The dashboard embeds it in an

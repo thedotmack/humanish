@@ -28,7 +28,7 @@ import {
   writeProfileAtomic,
 } from "./profile-store.js";
 import { captureStorageState, resetNekoTab } from "./neko-bridge.js";
-import { appendAuditLine, pruneOldLogs } from "./audit.js";
+import { appendAuditLine, pruneOldLogs, readRecentAuditLines } from "./audit.js";
 import {
   ACTION_IDS,
   ACTION_REGISTRY,
@@ -185,6 +185,22 @@ export function buildServer(): FastifyInstance {
       throw err;
     }
     return { ok: true };
+  });
+
+  // -------- GET /audit --------
+  // Returns the last N tab-separated audit lines (raw). Broker is responsible
+  // for parsing into structured records. Bearer-gated like every other route.
+  app.get("/audit", async (req, reply) => {
+    if (!requireBearer(req, reply)) return;
+    let lines: string[];
+    try {
+      lines = await readRecentAuditLines(100);
+    } catch (err) {
+      req.log.error({ err: scrub(err) }, "readRecentAuditLines failed");
+      reply.code(500);
+      return { error: "audit_read_failed" };
+    }
+    return { lines };
   });
 
   // -------- /run --------

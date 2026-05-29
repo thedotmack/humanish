@@ -34,8 +34,13 @@ const EnvSchema = z.object({
   PROFILES_DIR: z.string().default("/data/profiles"),
   // Append-only audit log path. `/data` survives Fly machine restarts.
   AUDIT_LOG_PATH: z.string().default("/data/audit.log"),
-  // The action runner is loopback / Flycast only — never bind 0.0.0.0.
-  LISTEN_HOST: z.string().default("::1"),
+  // Action runner bind address. Defaults to "0.0.0.0" (all IPv4 interfaces)
+  // because Fly's fly-proxy connects via the machine's IPv4 from outside the
+  // network namespace. The actual network defense is BOX_SHARED_SECRET:
+  // every non-/healthz route requires `Authorization: Bearer ${BOX_SHARED_SECRET}`
+  // (constant-time compare). TLS terminates at fly-proxy.
+  // For local dev set LISTEN_HOST=::1 (loopback-only) via .dev.vars/env.
+  LISTEN_HOST: z.string().default("0.0.0.0"),
   LISTEN_PORT: z.coerce.number().int().positive().default(7654),
 });
 
