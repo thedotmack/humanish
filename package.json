@@ -9,6 +9,7 @@
     "box:deploy": "fly deploy -c packages/box/fly.toml",
     "typecheck": "pnpm -r typecheck",
     "lint": "pnpm -r lint",
+    "test": "pnpm -r test",
     "check:allowlist": "node scripts/check-action-allowlist.mjs"
   }
 }
