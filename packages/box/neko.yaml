@@ -1,0 +1,37 @@
+# neko v3 configuration (non-secret config only).
+#
+# Secrets are passed via Fly env vars — Viper-based config does not expand
+# `${VAR}` syntax inside yaml, so anything that referenced an env var
+# previously is now set via the NEKO_* env namespace (see fly secrets list).
+#
+# Env vars set on the deployed app:
+#   NEKO_MEMBER_PROVIDER=multiuser
+#   NEKO_MEMBER_MULTIUSER_USER_PASSWORD=<random>
+#   NEKO_MEMBER_MULTIUSER_ADMIN_PASSWORD=<random>
+#   NEKO_SESSION_API_TOKEN=<BOX_SHARED_SECRET, same as broker uses>
+
+server:
+  bind: ":8080"
+  # Behind Fly's edge proxy — trust X-Forwarded-For for client IP logging.
+  proxy: true
+
+desktop:
+  screen: "1280x720@30"
+
+# No webcam / mic in the jail — the browser doesn't get media devices.
+capture:
+  webcam:
+    enabled: false
+  microphone:
+    enabled: false
+
+# Disable neko's built-in chat and file transfer so the user can't
+# exfiltrate data via the neko UI itself. Neko v3 reads these from yaml.
+plugins:
+  enabled: true
+  dir: /etc/neko/plugins
+  config:
+    chat:
+      enabled: false
+    filetransfer:
+      enabled: false

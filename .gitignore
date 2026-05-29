@@ -27,3 +27,21 @@ venv/
 data/
 storage_state*.json
 *.bin
+
+# Project-local scratch (cloned upstreams, experiments)
+.scratch/
+
+# Workspace
+node_modules/
+dist/
+.wrangler/
+.dev.vars
+.env
+.env.local
+
+# Box data
+packages/box/action-runner/data/
+*.bin
+
+# Build artifacts
+*.tsbuildinfo
