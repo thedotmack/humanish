@@ -44,7 +44,8 @@ COPY packages/box/action-runner/dist ./dist
 # bypassing Xorg init causing neko to panic on startup.
 COPY packages/box/action-runner.conf /etc/neko/supervisord/action-runner.conf
 
-COPY packages/box/neko.yaml /etc/neko.yaml
+# Path matters: the neko binary looks for /etc/neko/neko.yaml (not /etc/neko.yaml).
+COPY packages/box/neko.yaml /etc/neko/neko.yaml
 
 # 7654: action runner (public TLS on fly.toml, BOX_SHARED_SECRET-gated).
 # 8080: neko WebRTC + HTTP (public via fly.toml).
